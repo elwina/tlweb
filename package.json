@@ -1,0 +1,21 @@
+{
+  "name": "tlweb",
+  "version": "1.0.0",
+  "description": "A web page for compiling tex files to pdf",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "Elwina",
+  "license": "MIT",
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "child_process": "^1.0.2",
+    "crypto": "^1.0.1",
+    "express": "^4.21.2",
+    "fs": "^0.0.1-security",
+    "multer": "^1.4.5-lts.1",
+    "path": "^0.12.7",
+    "uuid": "^11.0.4"
+  }
+}

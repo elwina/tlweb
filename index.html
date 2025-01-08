@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX 编译服务</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+        }
+
+        input[type="file"] {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        button {
+            display: block;
+            margin-top: 10px;
+            padding: 5px 10px;
+        }
+
+        .status,
+        .queue,
+        .download {
+            margin-top: 20px;
+        }
+
+        .queue-item {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>LaTeX 编译服务</h1>
+        <form id="uploadForm">
+            <label for="fileInput">选择压缩文件:</label>
+            <input type="file" id="fileInput" name="file" accept=".zip" required>
+            <button type="submit">上传并编译</button>
+        </form>
+        <div class="status" id="status"></div>
+        <div class="download" id="download"></div>
+        <div class="queue" id="queue">
+            <h2>当前队列</h2>
+            <div id="queueItems"></div>
+        </div>
+        <button id="cleanupButton">清理所有任务和上传</button>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            const statusDiv = document.getElementById('status');
+            const downloadDiv = document.getElementById('download');
+
+            statusDiv.innerHTML = '正在上传...';
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) throw new Error('Upload failed.');
+                const data = await response.json();
+                const md5 = data.md5;
+
+                statusDiv.innerHTML = `任务已加入队列，MD5: ${md5}`;
+                checkStatus(md5);
+            } catch (error) {
+                statusDiv.innerHTML = `上传失败: ${error.message}`;
+            }
+        });
+
+        async function checkStatus(md5) {
+            const statusDiv = document.getElementById('status');
+            const downloadDiv = document.getElementById('download');
+            let data;
+
+            try {
+                const response = await fetch(`/status/${md5}`);
+                if (!response.ok) throw new Error('Failed to get status.');
+                data = await response.json();
+
+                if (data.status === 'queued') {
+                    statusDiv.innerHTML = '排队中...';
+                } else if (data.status === 'compiling') {
+                    statusDiv.innerHTML = '编译中...';
+                } else if (data.status === 'completed') {
+                    statusDiv.innerHTML = '编译完成！';
+                    downloadDiv.innerHTML = `<a href="/download/${md5}" target="_blank">点击下载PDF</a>`;
+                } else if (data.status === 'failed') {
+                    statusDiv.innerHTML = '编译失败，请重试。';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `查询状态失败: ${error.message}`;
+            }
+
+            // 如果不是已完成或失败，继续检查状态
+            if (['queued', 'compiling'].includes(data?.status)) {
+                setTimeout(() => checkStatus(md5), 3000); // 每隔3秒检查一次
+            }
+        }
+
+        async function fetchQueue() {
+            try {
+                const response = await fetch('/queue');
+                if (!response.ok) throw new Error('Failed to fetch queue.');
+                const data = await response.json();
+                const queueItemsDiv = document.getElementById('queueItems');
+                queueItemsDiv.innerHTML = '';
+
+                data.queue.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'queue-item';
+                    itemDiv.textContent = `MD5: ${item.md5}, Status: ${item.status}`;
+                    queueItemsDiv.appendChild(itemDiv);
+                });
+            } catch (error) {
+                console.error('Failed to fetch queue:', error);
+            }
+        }
+
+        // 定期刷新队列信息
+        setInterval(fetchQueue, 5000); // 每隔5秒刷新一次
+
+        // 初始加载时也获取一次队列信息
+        fetchQueue();
+
+        document.getElementById('cleanupButton').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/cleanup', { method: 'POST' });
+                if (!response.ok) throw new Error('Cleanup failed.');
+                const result = await response.json();
+                alert(result.message);
+                // 清空队列显示
+                document.getElementById('queueItems').innerHTML = '';
+            } catch (error) {
+                alert(`清理失败: ${error.message}`);
+            }
+        });
+    </script>
+</body>
+
+</html>
