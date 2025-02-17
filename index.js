@@ -6,9 +6,12 @@ const { exec, spawn } = require("child_process");
 const AdmZip = require("adm-zip");
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
+const cors = require('cors');
 
 const app = express();
 const port = 3000;
+
+app.use(cors());
 
 // 设置存储位置和文件名
 const upload = multer({ dest: "uploads/" });
@@ -123,11 +126,14 @@ app.get("/queue", (req, res) => {
 
 // 保存并解压上传的文件
 app.post("/upload", upload.single("file"), async (req, res) => {
-  const zipFilePath = req.file.path;
-  const folderName = `${req.file.filename}_files`;
-  const extractPath = path.join(__dirname, "uploads", folderName);
-
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded." });
+  }
   try {
+    const zipFilePath = req.file.path;
+    const folderName = `${req.file.filename}_files`;
+    const extractPath = path.join(__dirname, "uploads", folderName);
+
     // 创建解压目标文件夹
     await fs.mkdir(extractPath, { recursive: true });
 
@@ -183,7 +189,10 @@ app.get("/status/:md5", (req, res) => {
     return res.status(404).json({ error: "Task not found." });
   }
 
-  res.json(statusInfo);
+  if (statusInfo.status === "failed") {
+    res.json({ status: "failed" });
+    cleanupTaskFiles(md5);
+  }
 });
 
 // 下载编译后的PDF文件
